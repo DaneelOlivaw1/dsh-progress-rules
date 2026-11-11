@@ -8,8 +8,8 @@
 # The row mounts the plugin module in this same package; the prompt text lives
 # in its `config.text`, so editing prose never touches the plugin code.
 #
-# The companion client row carries the browser half of the settings page. It is
-# a separate row so the host half stays usable in a profile without a web client.
+# The settings page needs no code of its own: every config field is `.volatile()`,
+# so the settings service derives the form from the schema in index.mjs.
 - insert:
     - id: progress-rules
       name: dsh-progress-rules
@@ -22,5 +22,3 @@
         failOnSilent: true
         # 规则文本、提醒文本、硬闸失败文案都有代码内默认值，见 index.mjs 的 DEFAULT_*。
         # 要改文案就在 profile 覆盖或设置页里写，不必动这里。
-    - id: progress-rules-client
-      name: dsh-progress-rules

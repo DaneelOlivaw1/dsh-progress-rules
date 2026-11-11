@@ -6,12 +6,10 @@
   "main": "index.mjs",
   "exports": {
     ".": "./index.mjs",
-    "./client": "./client.js",
     "./package.json": "./package.json"
   },
   "files": [
     "index.mjs",
-    "client.js",
     "cordis.patch.yml",
     "README.md",
     "README.zh.md",
