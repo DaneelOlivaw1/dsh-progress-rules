@@ -3,6 +3,10 @@
 一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)（DSH）bundle 插件：
 让 agent 在执行过程中先通报进展，而不是闷头连续跑几十步工具。
 
+> **这是 [Adamaik/dsh-progress-rules](https://github.com/Adamaik/dsh-progress-rules) 的分叉**，
+> 在 0.2.1 基础上加了两样东西：**硬闸**（不先说话就让工具调用失败，而不只是提醒）和
+> **设置页**（Web 侧栏「插件」里可改全部字段）。上游只发提醒，实测模型会忽略九成以上。
+
 [English](README.md) | 中文
 
 ## 它做什么
@@ -20,8 +24,15 @@
    再继续”。这条提醒是持久化 context 消息，在界面上渲染为 `progress-rules` context 行，
    不会伪装成用户发言。任何一步有正文，计数清零。
 
-第一层对模型只是建议；第二层才是真正能打断“40 步不吭声”的机制——由 harness 自己插提醒，
-而不是指望模型记住规则。
+第一层对模型只是建议；第二层会由 harness 自己插提醒，而不是指望模型记住规则。但实测提醒
+仍是软的：在长批处理会话里，222 次提醒只有 8% 被立刻照做。
+
+3. **硬闸（分叉新增，默认开）** —— 攒满 `everySteps` 个沉默步后，主 agent 的下一次工具
+   调用直接失败（工具结果返回 `Error:`），工具不执行，模型必须先出正文再重试。子代理、
+   `ask_user_question`、`present` 不拦。撞闸之后不再叠一条提醒，失败文案本身已经说了要求。
+
+4. **设置页（分叉新增）** —— Web 侧栏「插件」→「过程纪律」，全部字段可改，保存写回 profile
+   patch，即时生效。
 
 ## 安装
 
@@ -87,7 +98,9 @@ npm install dsh-progress-rules
 | `text` | 包内中文规则 | 系统提示词段落文本，空字符串则不注册该段。 |
 | `name` | `user:progress-rules` | 段落名。 |
 | `order` | `10150` | 段落顺序（WEB_SURFACE 为 10100，persona suffix 为 10200）。 |
-| `enforce` | `true` | `false` 关闭每步提醒，只保留提示词段落。 |
+| `failOnSilent` | `true` | 硬闸开关；`false` 只提醒不失败。 |
+| `gateMessage` | 包内一句话 | 硬闸失败时返回给模型的文案。 |
+| `enforce` | `true` | `false` 关闭提醒和硬闸，只保留提示词段落。 |
 | `reminder` | 包内一句话 | 沉默步注入的提醒文本，空字符串关闭该机制。 |
 | `everySteps` | `5` | 连续沉默多少步提醒一次。`1` = 每步提醒，越大越安静。 |
 
