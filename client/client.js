@@ -1,4 +1,4 @@
-window.__ModuleLoader__.load({
+if (typeof window !== 'undefined') window.__ModuleLoader__.load({
   id: 'dsh-progress-rules-client',
   factory: (require) => {
     const module = { exports: {} }

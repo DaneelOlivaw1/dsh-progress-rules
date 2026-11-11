@@ -23,4 +23,4 @@
         # 规则文本、提醒文本、硬闸失败文案都有代码内默认值，见 index.mjs 的 DEFAULT_*。
         # 要改文案就在 profile 覆盖或设置页里写，不必动这里。
     - id: progress-rules-client
-      name: dsh-progress-rules-client
+      name: dsh-progress-rules
