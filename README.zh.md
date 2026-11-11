@@ -39,16 +39,25 @@
 DSH 插件安装在**profile**（`$DSH_HOME/profiles/<name>`）里，不是全局：
 
 ```bash
-cd ~/.dsh/profiles/desktop      # 或 web / tui / 你自己的 profile
-npm install dsh-progress-rules
+cd ~/.dsh/profiles/web          # 或 tui / 你自己的 profile
+
+# 这个 fork 的版本以 git tag 发布
+dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
+# 等价写法（自己跑包管理器时）：
+# npm install github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
 ```
+
+> npm 上的 `dsh-progress-rules` 这个名字属于上游
+> [`Adamaik/dsh-progress-rules`](https://github.com/Adamaik/dsh-progress-rules)（最新 `0.2.1`），
+> 所以 `npm install dsh-progress-rules` 装的是**没有硬闸和设置页**的上游版本。
+> 本 fork 的版本请按上面的 git tag 方式安装。
 
 然后在 profile 的 `package.json` 里把 bundle 加进去（bundle 按列表顺序组合，放 base 之后）：
 
 ```json
 {
   "dependencies": {
-    "dsh-progress-rules": "^0.2.1"
+    "dsh-progress-rules": "github:DaneelOlivaw1/dsh-progress-rules#v0.3.1"
   },
   "dsh": {
     "profile": {
@@ -62,7 +71,7 @@ npm install dsh-progress-rules
 }
 ```
 
-然后重启 DSH。如果你的 DSH 带 `dsh plugin` 命令，它做的就是“加依赖 + 加 bundles 条目”。
+然后重启 DSH。`dsh plugin` 只装依赖；**bundles 条目**是另一件事 —— Web 插件页会帮你加，否则就按上面那样手改 `dsh.profile.bundles`。
 
 ## 配置
 
@@ -114,10 +123,14 @@ npm install dsh-progress-rules
 
 ## 兼容性
 
-- 在 DSH `0.2.1-rc.2`、Standard 预设、`deepseek-v4.1-flash:1017-cloud` 上测试。
+- 在 DSH `0.2.2-rc.1`、`0.2.1-rc.2`、Standard 预设、`deepseek-v4.1-flash:1017-cloud` 上测试。
 - 纯 ESM，无 Cordis 运行时导入，无运行时依赖；只用了 `node:crypto`。
 - 沉默判定看的是最后一条 assistant 消息里的 text 块；如果某个 provider 用自定义块类型
   承载正文，会判不出来，欢迎提 issue。
+
+## 更新日志
+
+[CHANGELOG.md](CHANGELOG.md) —— 0.3.1 修的是前端 bundle 注册 id 不对导致的 Web 启动失败。
 
 ## 许可证
 
