@@ -22,5 +22,7 @@
         failOnSilent: true
         # 规则文本、提醒文本、硬闸失败文案都有代码内默认值，见 index.mjs 的 DEFAULT_*。
         # 要改文案就在 profile 覆盖或设置页里写，不必动这里。
-    - id: progress-rules-client
-      name: dsh-progress-rules
+# 设置页（client/client.js）不需要第二行：dsh-progress-rules 是双面包
+# （package.json 里有 dsh.client + exports["./client"]），dsh-client-modules 会
+# 从这一行的 Loader 条目自动合成浏览器端模块。再插一行同名 name 只会把服务端
+# index.mjs 再 apply 一次（重复段落 + 双重硬闸）。

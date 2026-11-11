@@ -1,5 +1,9 @@
+// The registration id IS the package name: dsh-client-modules composes one boot
+// graph row per active Loader entry's resolved package (`graphRow(packageName, …)`)
+// and only strips a trailing `/client` from a registration id, so any other id
+// (e.g. a `-client` suffix) leaves the row unregistered and aborts web boot.
 if (typeof window !== 'undefined') window.__ModuleLoader__.load({
-  id: 'dsh-progress-rules-client',
+  id: 'dsh-progress-rules',
   factory: (require) => {
     const module = { exports: {} }
     const exports = module.exports
