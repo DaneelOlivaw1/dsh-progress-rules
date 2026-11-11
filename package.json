@@ -53,6 +53,6 @@
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.19.0",
-    "dsh-progress-rules-client": "workspace:*"
+    "dsh-progress-rules-client": "^0.3.0"
   }
 }
