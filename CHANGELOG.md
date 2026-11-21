@@ -2,9 +2,29 @@
 
 Notable changes to `dsh-progress-rules`. Versions are semver.
 
-Distribution: this fork releases as git tags (`v0.3.1`, …). The `dsh-progress-rules` name on the npm
-registry belongs to the upstream project, so install the fork with
-github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
+Distribution: this fork releases as git tags (`v0.3.2`, `v0.3.1`). The `dsh-progress-rules` name on
+the npm registry belongs to the upstream project, so install the fork with
+github:DaneelOlivaw1/dsh-progress-rules#v0.3.2
+
+## 0.3.2 — 2026-11-21
+
+### Fixed
+
+- **The hard gate failed a step that had just narrated.** The gate read the silent-run counter
+  that `agent/pre-step` advances *before* the model speaks, so after `everySteps` silent steps the
+  next step was denied even when its own assistant message opened with a paragraph and only then
+  called a tool. The gate now judges the assistant message that issued the batch: text resets the
+  run and the call is allowed, silence is counted. Regression cases live in `test.mjs`.
+- **Only the first call of a denied parallel batch failed.** The first denial reset the counter, so
+  the sibling calls in the same message slipped through and ran. The denied `(turn, step)` is now
+  recorded for the session, and every call of that batch fails with `gateMessage`.
+
+### Changed
+
+- The gate is cumulative again, as intended: it fires after `everySteps` consecutive silent steps
+  instead of failing the first silent call after a narration (0.3.1 behaviour). `everySteps` is
+  shared by the reminder and the gate; the counter clears on any narrated step.
+- `nudge` is back as a config field: `false` keeps the gate and drops the injected reminder.
 
 ## 0.3.1 — 2026-11-11 (first tagged release of this fork)
 

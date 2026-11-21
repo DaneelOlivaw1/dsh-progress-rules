@@ -29,9 +29,12 @@ the model to remember a rule.
 
 3. **Hard gate** (`failOnSilent`, on in the bundled patch) — once the silent run reaches
    `everySteps`, the *next* tool call of the main agent fails instead of running: the tool result
-   is an `Error:` carrying `gateMessage`, so the model must narrate before it can retry. Subagents
-   (`agent.parentAgent`), `ask_user_question`, and `present` are never gated. After a gated call
-   no reminder is stacked on top — the failure text already states the requirement.
+   is an `Error:` carrying `gateMessage`, so the model must narrate before it can retry. The gate
+   judges the assistant message that issued the batch, not the counter sampled at `pre-step`, so a
+   step that narrates and then calls a tool is never denied for the silence before it. Every call
+   of a denied parallel batch fails, not only the first. Subagents (`agent.parentAgent`),
+   `ask_user_question`, and `present` are never gated. After a gated call no reminder is stacked
+   on top — the failure text already states the requirement.
 
 4. **Settings page** — the package is also a dual-face plugin (`dsh.client` + `exports["./client"]`),
    so the Web profile renders it under **Plugins → 过程纪律 (Progress rules)** with every field
@@ -46,9 +49,9 @@ DSH plugins are installed into a **profile** (`$DSH_HOME/profiles/<name>`), not 
 cd ~/.dsh/profiles/web          # or tui / your own profile
 
 # released versions of this fork are git tags
-dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
+dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progress-rules#v0.3.2
 # equivalent, if you drive the package manager yourself:
-# npm install github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
+# npm install github:DaneelOlivaw1/dsh-progress-rules#v0.3.2
 ```
 
 > The `dsh-progress-rules` name on the npm registry belongs to the upstream project
@@ -62,7 +65,7 @@ order, so put it after the base bundles):
 ```json
 {
   "dependencies": {
-    "dsh-progress-rules": "github:DaneelOlivaw1/dsh-progress-rules#v0.3.1"
+    "dsh-progress-rules": "github:DaneelOlivaw1/dsh-progress-rules#v0.3.2"
   },
   "dsh": {
     "profile": {
@@ -116,7 +119,8 @@ replace the **whole** row config, so restate every key you keep:
 | `order` | `10150` | Section order (WEB_SURFACE is 10100, persona suffix 10200). |
 | `enforce` | `true` | `false` disables the nudge and the gate, leaving only the prompt section. |
 | `reminder` | bundled one-liner | Text injected before a silent step. Empty disables the nudge. |
-| `everySteps` | `5` | Consecutive silent steps before one reminder. `1` = every step, larger = quieter. |
+| `everySteps` | `3` (`5` in the bundled patch) | Consecutive silent steps before a reminder or the gate. `1` = every step, larger = quieter. |
+| `nudge` | `true` | Inject the reminder when the run fills. `false` keeps only the gate. |
 | `failOnSilent` | `false` in code, `true` in the bundled patch | Fail the next tool call instead of only reminding. |
 | `gateMessage` | bundled Chinese text | Tool failure reason returned by the gate. Empty disables the gate. |
 

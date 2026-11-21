@@ -28,8 +28,11 @@
 仍是软的：在长批处理会话里，222 次提醒只有 8% 被立刻照做。
 
 3. **硬闸（分叉新增，默认开）** —— 攒满 `everySteps` 个沉默步后，主 agent 的下一次工具
-   调用直接失败（工具结果返回 `Error:`），工具不执行，模型必须先出正文再重试。子代理、
-   `ask_user_question`、`present` 不拦。撞闸之后不再叠一条提醒，失败文案本身已经说了要求。
+   调用直接失败（工具结果返回 `Error:`），工具不执行，模型必须先出正文再重试。判定依据是
+   **发起这批调用的那条 assistant 消息**有没有正文，而不是 `pre-step` 时更早的计数——否则
+   “三步沉默后先说话再调工具”也会被误拦。同一批并行调用会一起失败，不会只拦第一个。
+   子代理、`ask_user_question`、`present` 不拦。撞闸之后不再叠一条提醒，失败文案本身已经
+   说了要求。
 
 4. **设置页（分叉新增）** —— Web 侧栏「插件」→「过程纪律」，全部字段可改，保存写回 profile
    patch，即时生效。
@@ -42,9 +45,9 @@ DSH 插件安装在**profile**（`$DSH_HOME/profiles/<name>`）里，不是全�
 cd ~/.dsh/profiles/web          # 或 tui / 你自己的 profile
 
 # 这个 fork 的版本以 git tag 发布
-dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
+dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progress-rules#v0.3.2
 # 等价写法（自己跑包管理器时）：
-# npm install github:DaneelOlivaw1/dsh-progress-rules#v0.3.1
+# npm install github:DaneelOlivaw1/dsh-progress-rules#v0.3.2
 ```
 
 > npm 上的 `dsh-progress-rules` 这个名字属于上游
@@ -57,7 +60,7 @@ dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progres
 ```json
 {
   "dependencies": {
-    "dsh-progress-rules": "github:DaneelOlivaw1/dsh-progress-rules#v0.3.1"
+    "dsh-progress-rules": "github:DaneelOlivaw1/dsh-progress-rules#v0.3.2"
   },
   "dsh": {
     "profile": {
@@ -111,7 +114,8 @@ dsh plugin --profile web add dsh-progress-rules@github:DaneelOlivaw1/dsh-progres
 | `gateMessage` | 包内一句话 | 硬闸失败时返回给模型的文案。 |
 | `enforce` | `true` | `false` 关闭提醒和硬闸，只保留提示词段落。 |
 | `reminder` | 包内一句话 | 沉默步注入的提醒文本，空字符串关闭该机制。 |
-| `everySteps` | `5` | 连续沉默多少步提醒一次。`1` = 每步提醒，越大越安静。 |
+| `everySteps` | `3`（bundle patch 里写的是 `5`） | 连续沉默多少步触发提醒或硬闸。`1` = 每步都算沉默，越大越安静。 |
+| `nudge` | `true` | 攒满沉默步时是否注入提醒。`false` 只保留硬闸。 |
 
 ## 为什么不用 AGENTS.md 或 `personaSuffix`？
 

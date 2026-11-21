@@ -27,8 +27,8 @@ import z from '@deepseek-ai/schemastery'
 /** Default section order: after WEB_SURFACE (10100), before persona suffix (10200). */
 export const DEFAULT_ORDER = 10150
 
-/** Default number of consecutive silent steps before a reminder is injected. */
-export const DEFAULT_EVERY_STEPS = 5
+/** Default number of consecutive silent steps before a reminder or gate fires. */
+export const DEFAULT_EVERY_STEPS = 3
 
 /**
  * Tools exempt from the hard gate. `ask_user_question` and `present` are not
@@ -77,6 +77,8 @@ export const Config = z.object({
   failOnSilent: z.boolean().default(false).volatile(),
   /** Turn off both the reminder and the gate; the prompt section stays. */
   enforce: z.boolean().default(true).volatile(),
+  /** Inject the narration reminder before a silent step. Off keeps only the gate. */
+  nudge: z.boolean().default(true).volatile(),
   /** Reminder text injected before a silent step; empty string turns it off. */
   reminder: z.string().default(DEFAULT_REMINDER).volatile(),
   /** Tool-failure reason returned by the hard gate. */
@@ -143,6 +145,30 @@ export function stepBeforeWasSilent(agent) {
 }
 
 /**
+ * The nearest assistant message above the current step, with the two facts the
+ * gate needs: whether it carried text, and its (turn, step) key.
+ * @param agent - the agent the step belongs to.
+ * @returns `{ silent, key }`, or undefined when no assistant message is found.
+ */
+export function lastAssistantEvent(agent) {
+  const session = agent?.session
+  const surface = session?.surface
+  if (surface === undefined || !Array.isArray(surface.nodes)) return undefined
+  for (let index = surface.nodes.length - 1; index >= 0; index -= 1) {
+    const event = session.eventAt(surface.nodes[index])
+    if (event === undefined) continue
+    if (event.type !== 'assistant/message') continue
+    const content = event.data?.message?.content
+    if (!Array.isArray(content)) return undefined
+    const silent = !content.some(block => (
+      block?.type === 'text' && String(block.text ?? '').trim() !== ''
+    ))
+    return { silent, key: `${event.data?.turn ?? '?'}:${event.data?.step ?? '?'}` }
+  }
+  return undefined
+}
+
+/**
  * Read one config field. Volatile fields arrive as subscribable references, so
  * unwrap a reference and fall back to the given default when it is empty.
  * @param field - the resolved field, possibly a reference.
@@ -178,64 +204,89 @@ export function apply(ctx, config) {
     )
   }
 
-  if (read(config.enforce, true) === false) return
+  const enforce = read(config.enforce, true) !== false
+  const nudge = read(config.nudge, true) !== false
   const reminder = String(read(config.reminder, DEFAULT_REMINDER)).trim()
-  if (reminder === '') return
   const everySteps = Math.max(1, Math.trunc(Number(read(config.everySteps, DEFAULT_EVERY_STEPS))))
   const failOnSilent = read(config.failOnSilent, false) === true
   const gateMessage = String(read(config.gateMessage, DEFAULT_GATE_MESSAGE)).trim()
-  // Consecutive silent steps since the last reminder, keyed by session object.
+  // Consecutive silent steps, keyed by session object. Both the reminder and the
+  // gate read this counter: `everySteps` is how many silent steps in a row are
+  // tolerated before the next reminder fires, or before the gate fails a call.
   const silentRun = new WeakMap()
   // Sessions whose previous tool batch was just gated off, keyed by session object.
   // The failure already carries the instruction, so no reminder rides along with it.
   const gatedLast = new WeakSet()
+  // The (turn, step) key whose batch the gate already denied, so the rest of the
+  // same parallel batch fails too instead of slipping through a reset counter.
+  const gatedStep = new WeakMap()
 
-  ctx.on('agent/pre-step', async ({ agent, step, signal }, next) => {
-    const decision = await next()
-    if (decision.kind === 'reject' || signal?.aborted) return decision
-    const session = agent?.session
-    if (session === undefined) return decision
-    if (step <= 1) {
+  // The counter must advance even in a gate-only setup (`nudge` off), because the
+  // gate below reads it. Nudge injection is the only part that `nudge` controls.
+  if (enforce) {
+    ctx.on('agent/pre-step', async ({ agent, step, signal }, next) => {
+      const decision = await next()
+      if (decision.kind === 'reject' || signal?.aborted) return decision
+      const session = agent?.session
+      if (session === undefined) return decision
+      if (step <= 1) {
+        silentRun.set(session, 0)
+        return decision
+      }
+      if (!lastStepWasSilent(agent)) {
+        silentRun.set(session, 0)
+        return decision
+      }
+      if (gatedLast.has(session)) {
+        gatedLast.delete(session)
+        silentRun.set(session, 0)
+        return decision
+      }
+      const run = (silentRun.get(session) ?? 0) + 1
+      if (!nudge || reminder === '' || run < everySteps) {
+        silentRun.set(session, run)
+        return decision
+      }
       silentRun.set(session, 0)
-      return decision
-    }
-    if (!lastStepWasSilent(agent)) {
-      silentRun.set(session, 0)
-      return decision
-    }
-    if (gatedLast.has(session)) {
-      gatedLast.delete(session)
-      silentRun.set(session, 0)
-      return decision
-    }
-    const run = (silentRun.get(session) ?? 0) + 1
-    if (run < everySteps) {
-      silentRun.set(session, run)
-      return decision
-    }
-    silentRun.set(session, 0)
-    const message = {
-      id: randomUUID(),
-      role: 'user',
-      content: [{ type: 'text', text: reminder }],
-      source: {
-        kind: 'progress-rules',
-        form: 'notice',
-        summary: '过程纪律：要求正文通报',
-      },
-    }
-    return { ...decision, messages: [...decision.messages, message] }
-  })
+      const message = {
+        id: randomUUID(),
+        role: 'user',
+        content: [{ type: 'text', text: reminder }],
+        source: {
+          kind: 'progress-rules',
+          form: 'notice',
+          summary: '过程纪律：要求正文通报',
+        },
+      }
+      return { ...decision, messages: [...decision.messages, message] }
+    })
+  }
 
-  if (!failOnSilent || gateMessage === '') return
+  if (!enforce || !failOnSilent || gateMessage === '') return
   // The gate is a monotonic denial on the global guard layer. It stays off for
   // delegated agents: a child reports to its parent, not to the user.
+  // It fires once `everySteps` silent steps have piled up, so short bursts of
+  // tool calls stay legal and only a long silent run is stopped.
   ctx.effect(() => ctx.tools.guard((exec) => {
     const agent = exec.agent
     if (agent === undefined || agent.parentAgent !== undefined) return
     if (GATE_EXEMPT_TOOLS.has(exec.name)) return
-    if (!stepBeforeWasSilent(agent)) return
-    if (agent.session !== undefined) gatedLast.add(agent.session)
-    return gateMessage
+    const session = agent.session
+    if (session === undefined) return
+    // Judge the message that issued this batch, not the counter advanced before
+    // the model spoke: otherwise a step that narrates and then calls a tool
+    // inherits the silence of the steps before it and is denied anyway.
+    const last = lastAssistantEvent(agent)
+    if (last === undefined) return
+    if (last.silent) {
+      if (gatedLast.has(session) && gatedStep.get(session) === last.key) return gateMessage
+      if ((silentRun.get(session) ?? 0) < everySteps) return
+      silentRun.set(session, 0)
+      gatedLast.add(session)
+      gatedStep.set(session, last.key)
+      return gateMessage
+    }
+    silentRun.set(session, 0)
+    return undefined
   }), 'progress-rules.gate()')
 }
